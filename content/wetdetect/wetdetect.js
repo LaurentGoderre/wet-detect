@@ -2,16 +2,12 @@
 	wetdetect = {
 		title : "WET Detection",
 
+		sites_count: 0,
 		sites: null,
 		results: null,
+		concurrent: 20,
 
 		exec : function () {
-		$.ajaxSetup({
-			dataType: "html",
-			contentType: "text/html; charset=ISO-8859-1",
-			timeout:90000
-		});
-
 			wetdetect.results = [];
 			$(wetdetect).on("testscomplete", wetdetect._onTestsComplete);
 			wetdetect._loadSites();
@@ -31,16 +27,25 @@
 
 		_processSites : function(){
 			try{
-				for (s=0; s < wetdetect.sites.length; s++){
-					site = wetdetect.sites[s];
+				if (wetdetect.sites.length > 0){
+					site = wetdetect.sites.pop();
 					if (site.url != undefined && site.url.match(/^http/gi)){
-						$.ajax({
+						var r = $.ajax({
 							type:'GET',
 							url:site.url,
-							context:site
+							context:site,
+							dataType: "html",
+							contentType: "text/html; charset=ISO-8859-1",
+							timeout:20000
 						}).always(wetdetect._onSiteLoaded);
+						if (wetdetect.sites.length > 0){
+							r.always(wetdetect._processSites);
+						}
 					}else{
 						wetdetect._testSite(site, {error:400});
+						if (wetdetect.sites.length > 0){
+							wetdetect._processSites();
+						}
 					}
 				}
 			}catch(e){
@@ -103,15 +108,18 @@
 		},
 
 		_showProgress : function(){
-			var p = Math.floor(wetdetect.results.length/wetdetect.sites.length*100) + "%";
-			$("#progress").text("Tested " + wetdetect.results.length + " out of " + wetdetect.sites.length + " sites (" + p + ")");
+			var p = Math.floor(wetdetect.results.length/wetdetect.sites_count*100) + "%";
+			$("#progress").text("Tested " + wetdetect.results.length + " out of " + wetdetect.sites_count + " sites (" + p + ")");
 			try{$("title").text(wetdetect.title + " - " + p);}catch(e){}
 		},
 
 		_onSitesLoaded : function(response){
 			var jsonText = (typeof response == "string") ? response : response.responseText;
 			wetdetect.sites = $.parseJSON(jsonText);
-			wetdetect._processSites();
+			wetdetect.sites_count = wetdetect.sites.length;
+			for (t = 0; t <= wetdetect.concurrent; t++){
+				wetdetect._processSites();
+			}
 		},
 
 		_onSiteLoaded : function(data){
@@ -121,8 +129,8 @@
 				wetdetect._testSite(this, {error: data.status});
 			}
 			wetdetect._showProgress();
-
-			if (wetdetect.results.length >= wetdetect.sites.length){
+			
+			if (wetdetect.results.length == wetdetect.sites_count){
 				$(wetdetect).trigger("testscomplete");
 			}
 		},
