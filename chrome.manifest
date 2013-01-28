@@ -1,0 +1,5 @@
+content wetdetect content/wetdetect/
+content wetdetect content/wetdetect/ contentaccessible=yes
+overlay chrome://browser/content/browser.xul chrome://wetdetect/content/browser.xul
+
+locale wetdetect en-CA	locale/en-CA/

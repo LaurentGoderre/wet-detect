@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<!DOCTYPE window SYSTEM "chrome://wetdetect/locale/wetdetect.dtd">
+<overlay xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+	<script type="application/x-javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js" />
+	<script type="application/x-javascript" src="chrome://wetdetect/content/wetdetect_chrome.js" />
+	
+	<stringbundleset id="stringbundleset">
+        <stringbundle id="strings_wetdetect" src="chrome://wetdetect/locale/wetdetect.properties"/>
+    </stringbundleset>
+	
+	<menupopup id="menu_ToolsPopup">
+		<menuitem label="&wetdetect.menu;" oncommand="wetdetect_chrome.run()"/>
+	</menupopup>
+</overlay> 

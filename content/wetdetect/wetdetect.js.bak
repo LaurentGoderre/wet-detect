@@ -1,0 +1,159 @@
+var wetdetect = function () {
+	var prefManager = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
+	return {
+		$jnc: null,
+		
+		title : "WET Detection",
+		
+		document: null,
+		
+		sites: null,
+		results: null,
+	
+		init : function () {
+			
+		},
+		
+		run : function () {
+			wetdetect.results = [];
+			
+			$jnc = jQuery.noConflict();
+			gBrowser.selectedTab = gBrowser.addTab();
+			var newTabBrowser = gBrowser.getBrowserForTab(gBrowser.selectedTab);
+			newTabBrowser.addEventListener("load", wetdetect._onTabLoaded, true);
+			$jnc(wetdetect).on("testscomplete", wetdetect._onTestsComplete);
+		},
+		
+		_loadSites : function(){
+			$jnc.ajax({
+				url: "chrome://wetdetect/content/sites.json",
+				dataType:"text",
+				mimeType: 'text/plain', 
+				statusCode: {
+					//No status code since local;
+					0:wetdetect._onSitesLoaded
+				 }
+			})
+		},
+		
+		_processSites : function(){
+			$jnc.ajaxSetup({
+				dataType: "html",
+				contentType: "text/html; charset=ISO-8859-1",
+				timeout:90000,
+			});
+			
+			for (s=0; s < wetdetect.sites.length; s++){
+				site = wetdetect.sites[s];
+				if (site.url.match(/^http/gi)){
+					$jnc.ajax({
+						url:site.url,
+						context:site
+					}).always(wetdetect._onSiteLoaded);
+				}else{
+					wetdetect._testSite(site, {error:400});
+				}
+			}
+		},
+		
+		_testSite : function(site, data){
+			var site = $jnc.extend(site, {r:"UNKNOWN"});
+			if (typeof(data) == "string"){
+				if (data.match(/gcwu-fegc/gi)){
+					site.r = "GCWU/WET";
+				}else if (data.match(/Web Experience Toolkit \(WET\)/gi)){
+					site.r = "WET";
+				}else if (data.match(/PE\.progress/gi) && data.match(/CLF 2.0 TEMPLATE VERSION/gi)){
+					site.r = "CLF2+WET"
+				}else if (data.match(/PE\.progress/gi)){
+					site.r = "WET/NL"
+				}else if (data.match(/CLF 2.0 TEMPLATE VERSION/gi)){
+					site.r = "CLF2"
+				}
+			}else{
+				site.r = data.error;
+			}
+			wetdetect.results.push(site);
+			wetdetect._showProgress();
+		},
+		
+		_showResults : function(results){
+			$jnc("body", wetdetect.document).append("<h2>Results</h2><p id=\"summary\"></p><h3>Using WET</h3><ol id=\"usingwet\"></ol><h2>Dump</h2><table id=\"dump\"><tr><th>Department</th><th>URL</th><th>Status</th></tr></table>");
+			
+			var summary = $jnc("#summary", wetdetect.document);
+			var wetlist = $jnc("#usingwet", wetdetect.document);
+			var details = $jnc("#dump", wetdetect.document);
+			
+			var wet=0, gcwuwet=0, clfwet=0, wetnl=0, clf=0, secure=0, notfound=0, error=0, unknown=0;
+			for (r=0;r<wetdetect.results.length; r++){
+				result = wetdetect.results[r]
+				if (result.r == "UNKNOWN"){
+					unknown++;
+				}else if (result.r == "WET" || result.r == "GCWU/WET"){
+					wet++;
+					if (wetlist.text().indexOf(result.d) < 0){
+						wetlist.append("<li>" + result.d + "</li>");
+					}
+					if (result.r == "GCWU/WET")
+						gcwuwet++;
+				}else if (result.r == "CLF2+WET"){
+					clfwet++;
+				}else if (result.r == "WET/NL"){
+					wetnl++
+				}else if (result.r == "CLF2"){
+					clf++
+				}else if(result.r == "401" || result.r == "403"){
+					secure++
+				}else if(result.r == "404"){
+					notfound++
+				}else{
+					error++;
+				}
+				
+				details.append("<tr><td>" + result.d + "</td><td>" + result.url + "</td><td>" + result.r + "</td></tr>");
+			}
+			summary.text("WET: " + wet + "(GCWU:" + gcwuwet + "), CLF2/WET Hybrid: " + clfwet + ", WET Components (Unknown template): " + wetnl + ", CLF2: " +  clf + ", Secure: " + secure + ", Not Found: " + notfound + ", Other Error: " + error  + ", Unknown: " + unknown);
+		},
+		
+		_showProgress : function(){
+			var progress = $jnc("#progress", wetdetect.document);
+			if (progress.length < 1){$jnc("body", wetdetect.document).append("<p id=\"progress\"></p>");}
+			var p = Math.round(wetdetect.results.length/wetdetect.sites.length*100) + "%";
+			progress.text("Tested " + wetdetect.results.length + " out of " + wetdetect.sites.length + " sites (" + p + ")");
+			$jnc("title", wetdetect.document).text(wetdetect.title + " - " + p);
+		},
+		
+		_onTabLoaded : function(){
+			wetdetect.document = this.contentDocument;
+			$jnc("body", wetdetect.document).append("<h1>" + wetdetect.title + "</h1>");
+			$jnc("head", wetdetect.document).append("<title>" + wetdetect.title + "</title>");
+			if (wetdetect.sites == null){
+				wetdetect._loadSites();
+			}else{
+				wetdetect._processSites();
+			}
+		},
+		
+		_onSitesLoaded : function(response){
+			wetdetect.sites = $jnc.parseJSON(response.responseText);
+			wetdetect._processSites();
+		},
+		
+		_onSiteLoaded : function(data){
+			if (typeof(data) == "string"){
+				wetdetect._testSite(this, data);
+			}else{
+				wetdetect._testSite(this, {error: data.status});
+			}
+			
+			if (wetdetect.results.length >= wetdetect.sites.length){
+				$jnc(wetdetect).trigger("testscomplete");
+			}
+		},
+		
+		_onTestsComplete : function(e){
+			wetdetect._showResults(e.results);
+		}
+	};
+}();
+window.addEventListener("load", wetdetect.init, false);
