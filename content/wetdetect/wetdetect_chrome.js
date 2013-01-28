@@ -16,5 +16,5 @@ var wetdetect_chrome = function () {
 		},
 
 	};
-}
+}()
 window.addEventListener("load", wetdetect_chrome.init, false);
